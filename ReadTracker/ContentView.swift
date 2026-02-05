@@ -1,10 +1,3 @@
-//
-//  ContentView.swift
-//  ReadTracker
-//
-//  Created by Theodore Webb on 11/14/25.
-//
-
 import SwiftUI
 import CoreData
 
@@ -12,61 +5,91 @@ struct ContentView: View {
     @Environment(\.managedObjectContext) private var viewContext
 
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
-        animation: .default)
-    private var items: FetchedResults<Item>
+        sortDescriptors: [NSSortDescriptor(keyPath: \Book.startDate, ascending: true)],
+        predicate: NSPredicate(format: "isFinished == NO"),
+        animation: .default
+    )
+    private var books: FetchedResults<Book>
+
+    @State private var showingAddBook = false
+    @State private var selectedBook: Book?
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp!, formatter: itemFormatter)")
-                    } label: {
-                        Text(item.timestamp!, formatter: itemFormatter)
-                    }
+                ForEach(books) { book in
+                    BookRow(book: book)
+                        .contentShape(Rectangle())
+                        .onTapGesture { selectedBook = book }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                deleteBook(book)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+
+                            Button {
+                                finishBook(book)
+                            } label: {
+                                Label("Finish", systemImage: "checkmark.circle")
+                            }
+                            .tint(.green)
+                        }
                 }
-                .onDelete(perform: deleteItems)
             }
+            .navigationTitle("Reading")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
+                    NavigationLink(destination: CompletedBooksView()) {
+                        Label("History", systemImage: "clock")
+                    }
                 }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button { showingAddBook = true } label: {
+                        Label("Add Book", systemImage: "plus")
                     }
                 }
             }
-            Text("Select an item")
+            .overlay {
+                if books.isEmpty {
+                    ContentUnavailableView(
+                        "No Books",
+                        systemImage: "book",
+                        description: Text("Tap + to add a book you're reading.")
+                    )
+                }
+            }
+            .sheet(isPresented: $showingAddBook) {
+                AddBookView()
+            }
+            .sheet(item: $selectedBook) { book in
+                UpdateProgressView(book: book)
+            }
         }
     }
 
-    private func addItem() {
+    private func finishBook(_ book: Book) {
         withAnimation {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
+            book.isFinished = true
+            book.actualCompletionDate = Date()
+            book.currentPage = book.totalPages
 
             do {
                 try viewContext.save()
             } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
                 let nsError = error as NSError
                 fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
             }
         }
     }
 
-    private func deleteItems(offsets: IndexSet) {
+    private func deleteBook(_ book: Book) {
         withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
+            viewContext.delete(book)
 
             do {
                 try viewContext.save()
             } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
                 let nsError = error as NSError
                 fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
             }
@@ -74,13 +97,47 @@ struct ContentView: View {
     }
 }
 
-private let itemFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
-    return formatter
-}()
+private struct BookRow: View {
+    @ObservedObject var book: Book
+
+    private var cadenceLabel: String {
+        let cadence = ReadingCadence(rawValue: book.cadence) ?? .standard
+        switch cadence {
+        case .standard: return "Daily"
+        case .work: return "Mon-Thu"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(book.title ?? "")
+                .font(.headline)
+
+            Text("Page \(book.currentPage) of \(book.totalPages)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            ProgressView(value: Double(book.currentPage), total: Double(book.totalPages))
+
+            HStack {
+                Text(cadenceLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                if let est = book.estimatedCompletionDate {
+                    Text("Est. \(est, style: .date)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
 
 #Preview {
-    ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+    ContentView()
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
 }
