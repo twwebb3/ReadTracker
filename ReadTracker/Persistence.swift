@@ -1,10 +1,3 @@
-//
-//  Persistence.swift
-//  ReadTracker
-//
-//  Created by Theodore Webb on 11/14/25.
-//
-
 import CoreData
 
 struct PersistenceController {
@@ -14,15 +7,43 @@ struct PersistenceController {
     static let preview: PersistenceController = {
         let result = PersistenceController(inMemory: true)
         let viewContext = result.container.viewContext
-        for _ in 0..<10 {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
+
+        let sampleBooks: [(String, Int32, Int32, Int16, ReadingCadence)] = [
+            ("The Great Gatsby", 180, 45, 15, .standard),
+            ("Dune", 412, 120, 20, .standard),
+            ("Clean Code", 464, 200, 10, .work),
+        ]
+
+        let calendar = Calendar.current
+        for (title, totalPages, currentPage, pagesPerDay, cadence) in sampleBooks {
+            let book = Book(context: viewContext)
+            book.id = UUID()
+            book.title = title
+            book.totalPages = totalPages
+            book.currentPage = currentPage
+            book.pagesPerDay = pagesPerDay
+            book.cadence = cadence.rawValue
+            book.startDate = calendar.date(byAdding: .day, value: -7, to: Date())!
+            book.isFinished = false
+
+            let estimatedDate = CompletionCalculator.estimatedCompletionDate(
+                remainingPages: totalPages,
+                pagesPerDay: pagesPerDay,
+                cadence: cadence,
+                from: book.startDate!
+            )
+            book.originalEstimatedCompletionDate = estimatedDate
+            book.estimatedCompletionDate = CompletionCalculator.estimatedCompletionDate(
+                remainingPages: totalPages - currentPage,
+                pagesPerDay: pagesPerDay,
+                cadence: cadence,
+                from: Date()
+            )
         }
+
         do {
             try viewContext.save()
         } catch {
-            // Replace this implementation with code to handle the error appropriately.
-            // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
             let nsError = error as NSError
             fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
         }
@@ -38,17 +59,6 @@ struct PersistenceController {
         }
         container.loadPersistentStores(completionHandler: { (storeDescription, error) in
             if let error = error as NSError? {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-
-                /*
-                 Typical reasons for an error here include:
-                 * The parent directory does not exist, cannot be created, or disallows writing.
-                 * The persistent store is not accessible, due to permissions or data protection when the device is locked.
-                 * The device is out of space.
-                 * The store could not be migrated to the current model version.
-                 Check the error message to determine what the actual problem was.
-                 */
                 fatalError("Unresolved error \(error), \(error.userInfo)")
             }
         })
