@@ -19,7 +19,22 @@ enum CompletionCalculator {
 
         switch cadence {
         case .standard:
-            return calendar.date(byAdding: .day, value: readingDaysNeeded, to: startDate)!
+            // Weekday cadence: Mon-Fri only (weekday 2=Mon … 6=Fri)
+            let fullWeeks = readingDaysNeeded / 5
+            let remainder = readingDaysNeeded % 5
+
+            var date = calendar.date(byAdding: .weekOfYear, value: fullWeeks, to: startDate)!
+
+            var counted = 0
+            while counted < remainder {
+                date = calendar.date(byAdding: .day, value: 1, to: date)!
+                let weekday = calendar.component(.weekday, from: date)
+                if weekday >= 2 && weekday <= 6 {
+                    counted += 1
+                }
+            }
+
+            return date
 
         case .work:
             // Work cadence: Mon-Thu only (weekday 2=Mon, 3=Tue, 4=Wed, 5=Thu)

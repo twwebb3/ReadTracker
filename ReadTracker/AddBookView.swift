@@ -31,7 +31,7 @@ struct AddBookView: View {
 
                 Section {
                     Picker("Reading Cadence", selection: $cadence) {
-                        Text("Daily").tag(ReadingCadence.standard)
+                        Text("Weekday (Mon-Fri)").tag(ReadingCadence.standard)
                         Text("Work (Mon-Thu)").tag(ReadingCadence.work)
                     }
                     .pickerStyle(.segmented)
