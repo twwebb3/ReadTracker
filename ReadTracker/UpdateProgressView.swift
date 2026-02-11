@@ -8,6 +8,15 @@ struct UpdateProgressView: View {
     @ObservedObject var book: Book
     @State private var newPageText: String = ""
     @State private var showFinishAlert = false
+    @State private var pagesToAdd: Int32 = 10
+
+    private var remainingPages: Int32 {
+        book.totalPages - book.currentPage
+    }
+
+    private var clampedPagesToAdd: Int32 {
+        min(pagesToAdd, remainingPages)
+    }
 
     private var newPage: Int32 {
         Int32(newPageText) ?? book.currentPage
@@ -38,6 +47,17 @@ struct UpdateProgressView: View {
 
                     TextField("New page number", text: $newPageText)
                         .keyboardType(.numberPad)
+
+                    if remainingPages > 0 {
+                        Stepper("Add \(clampedPagesToAdd) pages", value: $pagesToAdd, in: 1...remainingPages)
+
+                        Text("That's page \(book.currentPage + clampedPagesToAdd) of \(book.totalPages)")
+                            .foregroundStyle(.secondary)
+
+                        Button("Apply") {
+                            newPageText = "\(book.currentPage + clampedPagesToAdd)"
+                        }
+                    }
                 }
 
                 Section("Estimated Completion") {
